@@ -2,6 +2,11 @@
 #include <ESP8266HTTPClient.h>
 #include <ESP8266WebServer.h>
 #include <ArduinoJson.h>
+#include <DHT.h>
+
+#define DHTPIN 4
+
+DHT dht(DHTPIN, DHT22);
 
 // Настройки точки доступа
 const char* ssid = "ESP8266";
@@ -98,17 +103,15 @@ void sendArduinoData(){
             JsonDocument doc;
             DeserializationError error = deserializeJson(doc, response);
 
-            if (error) {
+      if (error) {
         Serial.print(F("Ошибка разбора JSON: "));
         Serial.println(error.f_str());
         return;
-    }
-            arduino_id = doc["arduino_id"];
-            Serial.print("Arduino id: ");
-            Serial.println(arduino_id);
-        } else {
-            Serial.print("Ошибка при отправке запроса: ");
-            Serial.println(httpResponseCode);
+      }
+      arduino_id = doc["arduino_id"];
+      } else {
+        Serial.print("Ошибка при отправке запроса: ");
+        Serial.println(httpResponseCode);
         }
     http.end();
     WiFi.softAPdisconnect(true);
@@ -118,7 +121,7 @@ void sendArduinoData(){
 
 void setup() {
   Serial.begin(115200);
-  
+  dht.begin();
   // Настраиваем точку доступа
   WiFi.softAP(ssid, password);
   Serial.println("Точка доступа запущена");
@@ -135,30 +138,53 @@ void setup() {
 unsigned long start_time = 0;
 void loop() {
     server.handleClient();
-    if (millis() - start_time > 30 && WiFi.status() == WL_CONNECTED) {
+    if (millis() - start_time > 60000 && WiFi.status() == WL_CONNECTED) {
       start_time = millis();
       sendData();
     }
+}
+
+float air_te;
+float air_h;
+float earth_h;
+
+void getData(){
+  air_te = dht.readTemperature();
+  air_h = dht.readHumidity();
+  Serial.print("Температура: ");
+  Serial.println(air_te);
+  Serial.print("Влажность: ");
+  Serial.println(air_h);
+
 }
 
 void sendData(){
   if (WiFi.status() == WL_CONNECTED) { // Проверяем, подключены ли мы к Wi-Fi
     WiFiClient client;
     HTTPClient http;
-
-    http.begin(client,  "http://188.23.24.142:12000/api/data/");
+    getData();
+    http.begin(client,  "http://188.32.24.142:12000/api/data/");
     http.addHeader("Content-Type", "application/json");
 
     JsonDocument doc;
     doc["arduino_id"] = arduino_id;
-    doc["air_t"] = random(0, 35);
-    doc["air_h"] = random(0, 22);
+    doc["air_t"] = air_te;
+    doc["air_h"] = air_h;
     doc["earth_h"] = random(0, 12);
 
     String jsonString;
     serializeJson(doc, jsonString);
 
+    Serial.println(jsonString);
     int httpResponse = http.POST(jsonString);
+    if (httpResponse > 0) {
+      String response = http.getString();
+      Serial.println("Ответ от сервера: " + response);
+    } else {
+      String response = http.getString();
+      Serial.print("Ошибка от сервера: ");
+      Serial.println(response);
+    }
     
 
   }
