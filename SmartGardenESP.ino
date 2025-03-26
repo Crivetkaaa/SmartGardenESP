@@ -17,7 +17,7 @@ const int relayPin3 = D8;
 String WiFiSSID = "";
 String WiFipassword = "";
 
-const char* IP = "192.168.0.24:8000";
+const char* IP = "188.32.24.142:12000";
 
 const char* ssid = "ESP8266";
 const char* password = "123456789";
